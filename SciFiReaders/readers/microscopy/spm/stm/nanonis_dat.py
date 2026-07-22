@@ -68,6 +68,7 @@ class NanonisDatReader(Reader):
             print('Spectroscopy vector has title {}'.format(channel_names[0]))
             print('Spectrsocopy vector values: {}'.format(volt_vec))
         datasets = [] #list of sidpy datasets that will be output
+        dataset_dict = {}
 
         # Add quantity and units
         for chan_ind, chan_name in enumerate(channel_names[1:]): #start from 1 because 0th column is the spectral one
@@ -88,10 +89,10 @@ class NanonisDatReader(Reader):
 
             # append metadata
             data_set.original_metadata = parm_dict
-            datasets.append(data_set)
+            dataset_dict[chan_name] = data_set
 
         # Return the sidy dataset
-        return datasets
+        return dataset_dict
 
     @staticmethod
     def _read_parms(header):
