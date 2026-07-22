@@ -178,13 +178,14 @@ class Nanonis3dsReader(Reader):
         
         return dataset_list
         
-        return 
 
     def can_read(self):
         """
         Tests whether or not the provided file has a .3ds extension
         Returns
         -------
+        bool
+            True if the file has a .3ds extension, False otherwise
         """
 
-        return 
+        return self._input_file_path.lower().endswith('.3ds')

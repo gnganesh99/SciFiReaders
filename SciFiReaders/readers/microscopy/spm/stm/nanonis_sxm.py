@@ -145,9 +145,11 @@ class NanonisSXMReader(Reader):
 
     def can_read(self):
         """
-        Tests whether or not the provided file has a .dm3 extension
+        Tests whether or not the provided file has a .sxm extension
         Returns
         -------
+        bool
+            True if the file has a .sxm extension, False otherwise
         """
        
-        return 
+        return self._input_file_path.lower().endswith('.sxm')
