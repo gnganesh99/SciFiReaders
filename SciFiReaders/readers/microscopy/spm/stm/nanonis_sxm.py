@@ -107,7 +107,7 @@ class NanonisSXMReader(Reader):
         x_dim = self.data_dict['Dimensions'][0]
         y_dim = self.data_dict['Dimensions'][1]
 
-        dataset_list = []
+        dataset_dict = {}
         channel_parms = self.parm_dict['channel_parms']
 
         for dataset_name in list(self.data_dict.keys())[:-1]:
@@ -139,9 +139,9 @@ class NanonisSXMReader(Reader):
             orig_metadata = self.parm_dict['meas_parms']
             
             data_set.original_metadata =  merge_dict(chan_metadata,orig_metadata)
-            dataset_list.append(data_set)
+            dataset_dict[dataset_name] = data_set
         
-        return dataset_list
+        return dataset_dict
 
     def can_read(self):
         """
