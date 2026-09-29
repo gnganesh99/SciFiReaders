@@ -53,7 +53,7 @@ class NanonisSXMReader(Reader):
                 channel_parms[key] = dict(parms)
                 channel_parms[key]['Direction'] = direction
                 data = signal_dict[name][direction]
-                if scan_dir == 'down': # Flip the data vertically if the scan direction is down
+                if scan_dir == 'down':                 # Flip the data vertically if the scan direction is down
                     data = np.flip(data, axis=0)
                 if direction == 'backward':
                     data = np.flip(data, axis=1)
