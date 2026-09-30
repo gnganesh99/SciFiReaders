@@ -10,21 +10,23 @@ This directory contains readers for Nanonis scanning tunneling microscopy (STM) 
 
 Each reader returns a **dict of `sidpy.Dataset`**, one dataset per channel (and direction / sweep).
 
-### One function for all file types
-`ingest()` picks the reader from the file extension, so the same call works for `.3ds`, `.sxm` and `.dat`
-(and the other formats SciFiReaders supports). The result is identical to calling the reader directly.
+### One reader for all file types
+`sr.AutoReader` selects the reader from the file extension (`.3ds` → `Nanonis3dsReader`, `.sxm` →
+`NanonisSXMReader`, `.dat` → `NanonisDatReader`, and the other formats SciFiReaders supports) and returns exactly
+what that reader returns.
 
 ```python
-from SciFiReaders.ingestor import ingest
+import SciFiReaders as sr
 
-datasets = ingest("grid.3ds")      # or "scan.sxm", "spectrum.dat"
+datasets = sr.AutoReader("grid.3ds").read()      # or "scan.sxm", "spectrum.dat"
 print(list(datasets))              # ['Current', 'Current [bwd]', 'LI Demod 1 X', ..., 'Topography']
 current = datasets['Current']
 print(current.shape, current.units, current.quantity)
 print(current.original_metadata['sweep_ramp'])
 ```
 
-If a file cannot be read, `ingest()` returns `None`; call the specific reader to see the error message.
+The selected reader is available as `sr.AutoReader(path).reader_cls`. Errors from the reader (e.g. a file that is not
+a Nanonis file) are raised as they are; an unsupported extension raises a `TypeError`.
 
 ### Specific readers
 ```python
@@ -223,8 +225,8 @@ Files that are not Nanonis `.dat` files (no `[DATA]` section) raise a `ValueErro
 ## Testing status
 
 Unit tests (`tests/readers/microscopy/spm/stm/test_nanonis.py`) cover one example file per reader: a `.dat` with
-`[bwd]` and filtered columns, a two-direction `.sxm` (scan `up`) and a linear `.3ds` grid, and that `ingest()` selects
-the right reader for each. The datasets are taken from `<repo>/data/` and downloaded there if missing.
+`[bwd]` and filtered columns, a two-direction `.sxm` (scan `up`) and a linear `.3ds` grid, and that `sr.AutoReader`
+selects the right reader for each. The datasets are taken from `<repo>/data/` and downloaded there if missing.
 
 Additional behaviour has been checked against real instrument files: backward sweeps, multi-sweep and MLS `.dat`
 files, MLS and `[bwd]` `.3ds` grids, `up` / `down` and partial `.sxm` scans.
@@ -234,3 +236,8 @@ Not yet verified with real files:
   two-direction scan, assuming such a channel is stored as a single data block, but not confirmed with an instrument file.
 
 `AscReader` (`omicron_asc.py`, Omicron `.asc` files) in this directory has **no unit test**.
+
+
+## Notes
+
+Modified and tested: Ganesh Narasimha, 30 Sept 2026

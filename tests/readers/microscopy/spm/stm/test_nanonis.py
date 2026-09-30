@@ -287,24 +287,34 @@ class TestNanonis3ds(unittest.TestCase):
         assert np.isclose(metadata['Sweep Start'], -0.22) and np.isclose(metadata['Sweep End'], 0.22)
 
 
-class TestNanonisIngest(unittest.TestCase):
-    # SciFiReaders.ingestor.ingest must pick the Nanonis reader from the file extension
+# one example file per Nanonis reader: (url, local file name, reader class)
+AUTO_DETECT_FILES = [(root_path + "NanonisReader_BiasSpectroscopy.dat?raw=true",
+                      'NanonisReader_BiasSpectroscopy.dat', sr.NanonisDatReader),
+                     (r'https://www.dropbox.com/s/ozsdm1q83ik8gt8/NanonisReader_COOx_sample2286.sxm?raw=true',
+                      'NanonisReader_COOx_sample2286.sxm', sr.NanonisSXMReader),
+                     (root_path + "NanonisReader_STS_grid_lockin.3ds?raw=true",
+                      'NanonisReader_STS_grid_lockin.3ds', sr.Nanonis3dsReader)]
 
-    def test_ingest_selects_nanonis_readers(self):
-        from SciFiReaders.ingestor import ingest
-        files = [(root_path + "NanonisReader_BiasSpectroscopy.dat?raw=true",
-                  'NanonisReader_BiasSpectroscopy.dat', sr.NanonisDatReader),
-                 (r'https://www.dropbox.com/s/ozsdm1q83ik8gt8/NanonisReader_COOx_sample2286.sxm?raw=true',
-                  'NanonisReader_COOx_sample2286.sxm', sr.NanonisSXMReader),
-                 (root_path + "NanonisReader_STS_grid_lockin.3ds?raw=true",
-                  'NanonisReader_STS_grid_lockin.3ds', sr.Nanonis3dsReader)]
-        for url, file_name, reader in files:
+
+def assert_same_output(result, expected, label):
+    assert isinstance(result, dict) and list(result) == list(expected), \
+        "{}: keys {} should be {}".format(label, list(result) if isinstance(result, dict) else result, list(expected))
+    for key in expected:
+        assert np.array_equal(np.asarray(result[key]), np.asarray(expected[key]), equal_nan=True), \
+            "{}: data of {} differs".format(label, key)
+
+
+class TestNanonisAutoDetect(unittest.TestCase):
+    # sr.AutoReader must pick the Nanonis reader from the file extension
+
+    def test_autoreader_selects_nanonis_readers(self):
+        for url, file_name, reader in AUTO_DETECT_FILES:
             file_path = get_test_file(url, file_name)
+            # AutoReader maps these extensions directly, so check can_read() of the reader itself as well
             assert reader(file_path).can_read(), "{} should accept {}".format(reader.__name__, file_name)
-            ingested = ingest(file_path)
-            expected = reader(file_path).read()
-            assert isinstance(ingested, dict) and list(ingested) == list(expected), \
-                "ingest({}) should return the {} output".format(file_name, reader.__name__)
-            for key in expected:
-                assert np.array_equal(np.asarray(ingested[key]), np.asarray(expected[key]), equal_nan=True), \
-                    "ingest({}): data of {} differs".format(file_name, key)
+            auto = sr.AutoReader(file_path)
+            assert auto.reader_cls is reader, "AutoReader chose {} for {}, expected {}".format(
+                auto.reader_cls.__name__, file_name, reader.__name__)
+            assert [r.__name__ for r in auto.matched_readers] == [reader.__name__], \
+                "Only {} should match {}, got {}".format(reader.__name__, file_name, auto.matched_readers)
+            assert_same_output(auto.read(), reader(file_path).read(), "AutoReader({})".format(file_name))
