@@ -5,12 +5,10 @@ Created on Fri Nov 5 16:43:00 2021
 @author: Rama Vasudevan
 """
 
-import re
-import warnings
 import numpy as np  # For array operations
 import sidpy as sid
 from sidpy.sid import Reader, Dimension, DimensionType
-from .nanonis_base import Grid, _as_list
+from .nanonis_base import Grid, _as_list, _split_channel_name, _unique_key, _sweep_ramps
 
 class Nanonis3dsReader(Reader):
 
@@ -25,13 +23,7 @@ class Nanonis3dsReader(Reader):
         (name, direction, unit) -> ('LI Demod 1 X', 'backward', 'A').
         Backward sweeps are marked with '[bwd]'; everything else is forward.
         """
-        match = re.match(r'^(.*?)\s*\(([^()]*)\)\s*$', chan_name)
-        name, unit = (match.group(1), match.group(2)) if match else (chan_name.strip(), '')
-        direction = 'forward'
-        if '[bwd]' in name:
-            direction = 'backward'
-            name = name.replace('[bwd]', '')
-        name = ' '.join(name.split())
+        _, name, direction, unit = _split_channel_name(chan_name)
         return name, direction, unit
 
     @staticmethod
@@ -40,14 +32,7 @@ class Nanonis3dsReader(Reader):
         Return key unchanged if unused, otherwise the first free 'key_1', 'key_2', ...
         (with a warning). The first occurrence keeps the original name.
         """
-        if key not in existing:
-            return key
-        i = 1
-        while '{}_{}'.format(key, i) in existing:
-            i += 1
-        new_key = '{}_{}'.format(key, i)
-        warnings.warn('Duplicate channel key {!r}; renamed to {!r}'.format(key, new_key))
-        return new_key
+        return _unique_key(key, existing)
 
     @staticmethod
     def _collapse_param_grid(parm_grid):
@@ -92,17 +77,14 @@ class Nanonis3dsReader(Reader):
         # Forward and [bwd] data are both stored against the same sweep axis
         # (Sweep Start -> Sweep End); in time, the forward sweep ramps from
         # Sweep Start to Sweep End and the [bwd] sweep the opposite way.
-        sweep_axis = signal_dict['sweep_signal']
-        fwd_ramp = 'increasing' if sweep_axis[-1] >= sweep_axis[0] else 'decreasing'
-        bwd_ramp = 'decreasing' if fwd_ramp == 'increasing' else 'increasing'
+        fwd_ramp, bwd_ramp = _sweep_ramps(signal_dict['sweep_signal'])
         for chan_name, chan_data in zip(channels, channel_data):
-            name, direction, unit = Nanonis3dsReader._split_channel_name(chan_name)
             # key is the channel name as in the file, without the unit: 'Current', 'Current [bwd]'
-            key = name if direction == 'forward' else name + ' [bwd]'
-            key = Nanonis3dsReader._unique_key(key, data_channel_parms)
+            key, name, direction, unit = _split_channel_name(chan_name)
+            key = _unique_key(key, data_channel_parms)
             data_channel_parms[key] = {'Name': name,
                                        'Direction': direction,
-                                       'bias_ramp': fwd_ramp if direction == 'forward' else bwd_ramp,
+                                       'sweep_ramp': fwd_ramp if direction == 'forward' else bwd_ramp,
                                        'Unit': unit,
                                        'Channel': chan_name,
                                        }
@@ -173,7 +155,7 @@ class Nanonis3dsReader(Reader):
             data_mat = self.data_dict[dataset_name]
 
             #Make a sidpy dataset
-            data_set = sid.Dataset.from_array(data_mat, name=dataset_name)
+            data_set = sid.Dataset.from_array(data_mat, title=dataset_name)
 
             #Set the data type
             data_set.data_type = sid.DataType.SPECTRAL_IMAGE
@@ -194,7 +176,7 @@ class Nanonis3dsReader(Reader):
         topo = self.data_dict.get('topo')
         if topo is not None:
             topo_key = self._unique_key('Topography', dataset_dict)
-            data_set = sid.Dataset.from_array(topo, name=topo_key)
+            data_set = sid.Dataset.from_array(topo, title=topo_key)
             data_set.data_type = sid.DataType.IMAGE
             data_set.units = 'm'
             data_set.quantity = 'Z'

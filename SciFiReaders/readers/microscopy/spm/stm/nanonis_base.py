@@ -13,6 +13,7 @@ Read details about the license in the LICENSE file.
 """
 
 import os
+import re
 import warnings
 import numpy as np
 
@@ -597,6 +598,54 @@ def _parse_3ds_header(header_raw, header_override):
         header_dict[key] = val
 
     return header_dict
+
+
+def _split_channel_name(chan_name):
+    """
+    Split a Nanonis channel / column name such as 'LI Demod 1 X [bwd] (A)'.
+
+    Returns (key, name, direction, unit):
+    key       - the name as written in the file without the '(unit)', e.g. 'LI Demod 1 X [bwd]'
+    name      - key without the '[bwd]' tag, e.g. 'LI Demod 1 X'
+    direction - 'backward' if the name contains '[bwd]' (Nanonis return sweep), else 'forward'
+    unit      - text of the trailing '(...)', '' if there is none
+    """
+    match = re.match(r'^(.*?)\s*\(([^()]*)\)\s*$', chan_name.strip())
+    key, unit = (match.group(1), match.group(2)) if match else (chan_name.strip(), '')
+    key = ' '.join(key.split())
+    direction = 'backward' if '[bwd]' in key else 'forward'
+    name = ' '.join(key.replace('[bwd]', '').split())
+    return key, name, direction, unit
+
+
+def _unique_key(key, existing):
+    """
+    Return key unchanged if unused, otherwise the first free 'key_1', 'key_2', ...
+    (with a warning). The first occurrence keeps the original name.
+    """
+    if key not in existing:
+        return key
+    i = 1
+    while '{}_{}'.format(key, i) in existing:
+        i += 1
+    new_key = '{}_{}'.format(key, i)
+    warnings.warn('Duplicate channel key {!r}; renamed to {!r}'.format(key, new_key))
+    return new_key
+
+
+def _sweep_ramps(sweep_values):
+    """
+    (forward, backward) ramp of a sweep axis stored in forward order:
+    'increasing' / 'decreasing' in time. The [bwd] sweep runs the other way.
+    A sweep that changes direction (e.g. a multi-segment 0 -> 1 -> 0 V sweep)
+    is 'mixed' for both.
+    """
+    steps = np.diff(np.asarray(sweep_values, dtype=float))
+    steps = steps[np.isfinite(steps) & (steps != 0)]
+    if np.any(steps > 0) and np.any(steps < 0):
+        return 'mixed', 'mixed'
+    fwd = 'increasing' if sweep_values[-1] >= sweep_values[0] else 'decreasing'
+    return fwd, ('decreasing' if fwd == 'increasing' else 'increasing')
 
 
 def _as_list(val):
