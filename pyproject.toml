@@ -37,7 +37,7 @@ dependencies = [
     "numba",
     "ipython>=7.1.0",
     "pyUSID",
-    "gdown",
+    "pyNSID",
     "mrcfile",
     "pycroscopy-gwyfile",
     "scipy >= 1.11"
@@ -46,6 +46,7 @@ dependencies = [
 [project.optional-dependencies]
 hyperspy = ["hyperspy"]
 igor2 = ["igor2"]
+czi = ["aicspylibczi"]
 sid = ["pyUSID", "pyNSID"]
 image = ["pillow", "tifffile"]
 mcp = ["mcp"]

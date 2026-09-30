@@ -1,14 +1,10 @@
 
-""" 
-################################################################################
-# Python class for reading FEI Velox .emd files into sidpy Dataset
-# and extracting all metadata
-#
-# Written by Gerd Duscher, UTK 2021
-# update 08/2025 - improved EDS data reading
-#
-################################################################################
 """
+Reader for FEI/Thermo Fisher Velox (.emd) files into sidpy.Dataset, including all metadata.
+
+Written by Gerd Duscher, UTK 2021. Updated 08/2025 with improved EDS data reading.
+"""
+
 import json
 import h5py
 import numpy as np
@@ -248,28 +244,27 @@ class EMDReader(sidpy.Reader):
 
     def get_eds_spectrum(self) -> np.ndarray:
         """Get the EDS spectrum."""
-        acquisition = self.metadata.get('AcquisitionSettings', {})
+        acquisition: str = self.metadata['AcquisitionSettings']
 
-        scan_area = self.metadata.get('Scan', {}).get('ScanArea', {})
-        scan_size = self.metadata.get('Scan', {}).get('ScanSize', {})
-
-        if len(scan_area) * len(scan_size) > 0:
-            size_x = float(scan_size.get('width', 1)) * float(scan_area.get('right', 1))
-            size_x -= float(scan_size.get('width', 1)) * float(scan_area.get('left', 0))
-            size_y = float(scan_size.get('height', 1)) * float(scan_area.get('bottom', 1))
-            size_y -= float(scan_size.get('height', 1)) * float(scan_area.get('top', 0))
-            size_x = int(size_x)
-            size_y = int(size_y)
-        else:
-            raster_scan = acquisition.get('RasterScanDefinition', {})
-            size_x = int(raster_scan.get('Width', 1))
-            size_y = int(raster_scan.get('Height', 1))
+        size_x = 1
+        size_y = 1
+        scan = self.metadata.get('Scan', {}) if self.metadata is not None else {}
+        if 'ScanArea' in scan and 'ScanSize' in scan:
+            area, size = scan['ScanArea'], scan['ScanSize']
+            size_x = int(round((float(area['right']) - float(area['left'])) * float(size['width'])))
+            size_y = int(round((float(area['bottom']) - float(area['top'])) * float(size['height'])))
+        elif 'RasterScanDefinition' in acquisition:
+            size_x = int(acquisition.get('RasterScanDefinition', {}).get('Width', 0))
+            size_y = int(acquisition.get('RasterScanDefinition', {}).get('Height', 0))
+        size_x = max(size_x, 1)
+        size_y = max(size_y, 1)
 
         spectrum_size = int(acquisition.get('bincount', 0))
+
         self.number_of_frames = np.ceil((self.data_array[:, 0] == 65535).sum())
         self.number_of_frames = int(self.number_of_frames / (size_x * size_y))
 
-        data_array = np.zeros((int(size_x*size_y), int(spectrum_size/self.bin_xy)),dtype=np.ushort)
+        data_array = np.zeros((size_x*size_y, int(spectrum_size/self.bin_xy)),dtype=np.ushort)
 
         data, frame = get_stream(data_array, size_x*size_y, self.data_array[:, 0], self.bin_xy)
 

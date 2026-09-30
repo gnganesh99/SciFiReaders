@@ -51,8 +51,6 @@ class CZIReader(Reader):
         num_channels = raw_c[0] if isinstance(raw_c, tuple) else raw_c
         actual_channels = max(1, num_channels)
 
-        print(f"DEBUG: Dimensions found: {dims_dict}")
-
         for s_idx in range(num_scenes):
             for c_idx in range(actual_channels):
                 # 3. Read image data
@@ -142,52 +140,3 @@ class CZIReader(Reader):
                                     quantity=quant, 
                                     dimension_type=d_type)
             dataset.set_dimension(i, dim_obj)
-    
-    
-    
-    
-    
-    
-
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
