@@ -603,15 +603,22 @@ def _parse_3ds_header(header_raw, header_override):
 def _split_channel_name(chan_name):
     """
     Split a Nanonis channel / column name such as 'LI Demod 1 X [bwd] (A)'.
+    The unit may also be followed by tags, e.g. filtered columns 'Current (A) [bwd] [filt]'.
 
     Returns (key, name, direction, unit):
-    key       - the name as written in the file without the '(unit)', e.g. 'LI Demod 1 X [bwd]'
-    name      - key without the '[bwd]' tag, e.g. 'LI Demod 1 X'
+    key       - the name as written in the file without the '(unit)', e.g. 'LI Demod 1 X [bwd]',
+                'Current [bwd] [filt]'
+    name      - key without the '[bwd]' tag, e.g. 'LI Demod 1 X', 'Current [filt]'
     direction - 'backward' if the name contains '[bwd]' (Nanonis return sweep), else 'forward'
-    unit      - text of the trailing '(...)', '' if there is none
+    unit      - text of the last '(...)', '' if there is none
     """
-    match = re.match(r'^(.*?)\s*\(([^()]*)\)\s*$', chan_name.strip())
-    key, unit = (match.group(1), match.group(2)) if match else (chan_name.strip(), '')
+    chan_name = chan_name.strip()
+    matches = list(re.finditer(r'\(([^()]*)\)', chan_name))
+    if matches:
+        match = matches[-1]
+        key, unit = chan_name[:match.start()] + ' ' + chan_name[match.end():], match.group(1)
+    else:
+        key, unit = chan_name, ''
     key = ' '.join(key.split())
     direction = 'backward' if '[bwd]' in key else 'forward'
     name = ' '.join(key.replace('[bwd]', '').split())
