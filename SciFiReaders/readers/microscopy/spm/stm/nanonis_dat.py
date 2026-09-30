@@ -148,7 +148,8 @@ class NanonisDatReader(Reader):
         Tests whether or not the provided file has a .dat extension
         Returns
         -------
-
+        bool
+            True if the file has a .dat extension, False otherwise
         """
 
-        return super(NanonisDatReader, self).can_read(extension='dat')
+        return self._input_file_path.lower().endswith('.dat')

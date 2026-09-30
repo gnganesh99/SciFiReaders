@@ -285,3 +285,26 @@ class TestNanonis3ds(unittest.TestCase):
                 "but was read as {}".format(key, original_metadata[key], metadata[key])
         assert np.isnan(metadata['measure_delay']), "measure_delay should be nan (not in file)"
         assert np.isclose(metadata['Sweep Start'], -0.22) and np.isclose(metadata['Sweep End'], 0.22)
+
+
+class TestNanonisIngest(unittest.TestCase):
+    # SciFiReaders.ingestor.ingest must pick the Nanonis reader from the file extension
+
+    def test_ingest_selects_nanonis_readers(self):
+        from SciFiReaders.ingestor import ingest
+        files = [(root_path + "NanonisReader_BiasSpectroscopy.dat?raw=true",
+                  'NanonisReader_BiasSpectroscopy.dat', sr.NanonisDatReader),
+                 (r'https://www.dropbox.com/s/ozsdm1q83ik8gt8/NanonisReader_COOx_sample2286.sxm?raw=true',
+                  'NanonisReader_COOx_sample2286.sxm', sr.NanonisSXMReader),
+                 (root_path + "NanonisReader_STS_grid_lockin.3ds?raw=true",
+                  'NanonisReader_STS_grid_lockin.3ds', sr.Nanonis3dsReader)]
+        for url, file_name, reader in files:
+            file_path = get_test_file(url, file_name)
+            assert reader(file_path).can_read(), "{} should accept {}".format(reader.__name__, file_name)
+            ingested = ingest(file_path)
+            expected = reader(file_path).read()
+            assert isinstance(ingested, dict) and list(ingested) == list(expected), \
+                "ingest({}) should return the {} output".format(file_name, reader.__name__)
+            for key in expected:
+                assert np.array_equal(np.asarray(ingested[key]), np.asarray(expected[key]), equal_nan=True), \
+                    "ingest({}): data of {} differs".format(file_name, key)
