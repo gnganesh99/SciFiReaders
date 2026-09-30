@@ -326,11 +326,9 @@ class Scan(NanonisFile):
     attribute so as to not include this as a datapoint.
 
     Data is structured a little differently from grid files, obviously.
-    For each pixel in the scan, each channel is recorded forwards and
-    backwards one after the other.
-
-    Currently cannot take scans that do not have both directions
-    recorded for each channel, nor incomplete scans.
+    Each channel is stored as one (ny, nx) block per recorded direction,
+    channel after channel; a channel with Direction 'both' has a forward
+    block followed by a backward block, otherwise a single block.
 
     Parameters
     ----------
@@ -373,14 +371,13 @@ class Scan(NanonisFile):
         Returns
         -------
         dict
-            Channel name keyed dict of each channel array.
+            Channel name keyed dict; each value is a dict keyed by the
+            recorded direction(s) ('forward' and/or 'backward').
         """
         channs = list(self.header['data_info']['Name'])
-        nchanns = len(channs)
+        directions = [_sxm_directions(d) for d in self.header['data_info']['Direction']]
         nx, ny = self.header['scan_pixels']
-
-        # assume both directions for now
-        ndir = 2
+        block = nx * ny
 
         data_dict = dict()
 
@@ -390,14 +387,21 @@ class Scan(NanonisFile):
         data_format = self.data_format
         scandata = np.fromfile(f, dtype=data_format)
         f.close()
+        # convert big endian file data to native float32
+        scandata = scandata.astype(np.float32)
 
-        # reshape
-        scandata_shaped = scandata.reshape(nchanns, ndir, ny, nx)
+        # pad a truncated file with NaN so every expected block exists
+        n_total = block * sum(len(d) for d in directions)
+        if scandata.size < n_total:
+            scandata = np.concatenate([scandata, np.full(n_total - scandata.size, np.nan, dtype=np.float32)])
 
-        # extract data for each channel
-        for i, chann in enumerate(channs):
-            chann_dict = dict(forward=scandata_shaped[i, 0, :, :],
-                              backward=scandata_shaped[i, 1, :, :])
+        # walk through the blocks: channel after channel, one block per recorded direction
+        i_block = 0
+        for chann, chann_dirs in zip(channs, directions):
+            chann_dict = dict()
+            for direction in chann_dirs:
+                chann_dict[direction] = scandata[i_block * block:(i_block + 1) * block].reshape(ny, nx)
+                i_block += 1
             data_dict[chann] = chann_dict
 
         return data_dict
@@ -628,6 +632,11 @@ def _mls_sweep_signal(header, num_points):
     return None
 
 
+def _sxm_directions(direction):
+    """SXM DATA_INFO direction ('both', 'forward', 'backward') -> list of recorded directions."""
+    return ['forward', 'backward'] if direction == 'both' else [direction]
+
+
 def _parse_sxm_header(header_raw):
     """
     Parse raw header string.
@@ -691,6 +700,11 @@ def _parse_sxm_header(header_raw):
 
     for key in entries_to_be_split:
         header_dict[key] = header_dict[key].split()
+
+    # optional numeric entries, converted only when present
+    for key in ['scan_angle']:
+        if key in header_dict:
+            header_dict[key] = float(header_dict[key])
 
     for key in entries_to_be_floated:
         if isinstance(header_dict[key], list):
